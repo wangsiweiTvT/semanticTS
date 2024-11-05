@@ -8,6 +8,18 @@ import matplotlib.dates as mdates
 
 def synthesis(L,k,T,A):
     r"""
+
+    11.4 : 想要体现TS中的语义,借鉴 word2vec中的 idea
+    word2vec idea : 一些离散的词,  A 后面 大概率是 B ,
+
+    序列中,一段固定的确定的序列,无论从频域还是时域角度看,这段序列都已经确定,
+    那么其中 子序列就产生固定搭配, 还是说 不同序列之间需要找固定搭配?
+
+    比如 增长后必定上升这样的模式. 那么如何找到这样子的 最短子序列.
+    可以借鉴 BPE（Byte Pair Encoding）能找到词根词缀
+
+    那么其中任意的自序列都是确定的了.
+
     :param L: length of TS
     :param k: dec incr of TS
     :param T: list of temp

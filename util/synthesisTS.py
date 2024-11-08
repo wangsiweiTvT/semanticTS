@@ -51,6 +51,16 @@ def fft(ts):
     print(magnitude)
     return result,freqs,magnitude
 
+def freq_filter(ts,freq):
+    result, f, a = fft(ts)
+    freq_idx = np.where(np.abs(f) > freq)[0]
+    fft_freqs_cp = np.zeros_like(result)
+    fft_freqs_cp[freq_idx] = result[freq_idx]
+    result[freq_idx] = 0
+    ifft_result = np.fft.ifft(result)
+    ifft_real = np.real(ifft_result)  # 提取逆变换后的实部（忽略小的虚数部分）
+    return ifft_real
+
 if __name__ == '__main__':
     time,ts,s,t = synthesis(1000,0.001,[50,100,200,400],[1,1,2,2])
     plt.plot(time, ts, color='blue',linewidth=1)
@@ -58,22 +68,15 @@ if __name__ == '__main__':
     plt.plot(time, t, color='g',linewidth=1)
     plt.show()
 
-    result,f,a = fft(ts)
+    ifft_real = freq_filter(ts,50)
 
-    plt.plot(f[:len(f) // 2], a[:len(a) // 2])
-    plt.title("freq domain")
-    plt.xlabel("f(Hz)")
-    plt.ylabel("magnitude")
-    plt.show()
+    # plt.plot(f[:len(f) // 2], a[:len(a) // 2])
+    # plt.title("freq domain")
+    # plt.xlabel("f(Hz)")
+    # plt.ylabel("magnitude")
+    # plt.show()
 
-    freq_idx = np.where(np.abs(f) <= 1)[0]
-    fft_freqs_cp = np.zeros_like(result)
-    fft_freqs_cp[freq_idx]=result[freq_idx]
-    result[freq_idx] = 0
 
-    # 2. 逆快速傅里叶变换（IFFT）
-    ifft_result = np.fft.ifft(result)
-    ifft_real = np.real(ifft_result)  # 提取逆变换后的实部（忽略小的虚数部分）
     plt.plot(time, ifft_real)
     plt.title("IFFT")
     plt.xlabel("t(s)")

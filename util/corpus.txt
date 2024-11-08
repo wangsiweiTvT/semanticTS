@@ -1,0 +1,6 @@
+For discretization, first outliers are detected using Inter Quartile Range (IQR) . After setting the outliers aside,
+values are binned (discretized) by equal-width bins. Both outlier detection and the binning are based on the entire
+dataset, as opposed to each time series independently. Binning the values based on the entire data helps better
+capture the differences between series. For example if the data is coming from two participants with different
+levels of physical activity, the discretized data should reflect that (In this case the less active participant will not
+observe a subset of the symbols that correspond to high levels of activity).

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import glob
-from utils.synthesisTS import fft
+from util.synthesisTS import freq_filter
 import numpy as np
 
 
@@ -24,22 +24,15 @@ if __name__ == '__main__':
 
             plt.plot(timestamp, values)
 
-            result, f, a = fft(values)
+            ifft_real = freq_filter(values,40)
 
-            plt.subplot(2, 2, 2)
-            plt.plot(f[:len(f) // 2], a[:len(a) // 2])
-            plt.title("freq domain")
-            plt.xlabel("f(Hz)")
-            plt.ylabel("magnitude")
+            # plt.subplot(2, 2, 2)
+            # plt.plot(f[:len(f) // 2], a[:len(a) // 2])
+            # plt.title("freq domain")
+            # plt.xlabel("f(Hz)")
+            # plt.ylabel("magnitude")
 
-            freq_idx = np.where(np.abs(f) >= 50)[0]
-            fft_freqs_cp = np.zeros_like(result)
-            fft_freqs_cp[freq_idx] = result[freq_idx]
-            result[freq_idx] = 0
 
-            # 2. 逆快速傅里叶变换（IFFT）
-            ifft_result = np.fft.ifft(result)
-            ifft_real = np.real(ifft_result)  # 提取逆变换后的实部（忽略小的虚数部分）
             plt.subplot(2, 2, 3)
             plt.plot(timestamp, ifft_real)
             plt.title("IFFT")

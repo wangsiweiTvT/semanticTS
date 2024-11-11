@@ -37,35 +37,41 @@ def restore_series(symbols, bins):
     return np.array(restored_series)
 
 if __name__ == '__main__':
-    df = pd.read_csv('../2018aiops_dataset/8a20c229e9860d0c_35136.csv')
-    time_series = df.head(800)['value']
-    # timestamp, time_series, s, t = synthesis(1000, 0.000, [50, 100, 200, 400], [1, 1, 2, 2])
-    timestamp = list(range(0, 800, 1))
-    plt.subplot(2, 2, 1)
+    # df = pd.read_csv('../2018aiops_dataset/8a20c229e9860d0c_35136.csv')
+    # time_series = df.head(800)['value']
+    # timestamp = list(range(0, 800, 1))
 
-    plt.plot(timestamp, time_series)
+    timestamp, time_series, s, t = synthesis(1000, 0.001, [25,50, 100, 200, 400], [1,1, 1, 1, 1])
+    first_element = time_series[0]
+    plt.subplot(2, 2, 1)
+    plt.plot(range(0,len(time_series)), time_series)
+
+    df = pd.DataFrame(time_series, columns=['value'])
+    df['first_diff'] = df['value'].diff()
+    time_series = df['first_diff'][1:]
+
 
     num_bins = len(time_series)
     # 将时间序列数据离散化为索引 [478 478 501 503 485 465 440 431 395 366 333 329 348 387 368 275 229 222]
     symbols = discretize_series(time_series, num_bins)
-    print(f"Discretized symbols: {symbols}")
+    # print(f"Discretized symbols: {symbols}")
 
     value2unicode,unicode2value = create_value_to_unicode_map(symbols)
-    print("Value to Unicode Mapping:", value2unicode)
-    print("Unicode to Value Mapping:", unicode2value)
+    # print("Value to Unicode Mapping:", value2unicode)
+    # print("Unicode to Value Mapping:", unicode2value)
     # 将符号序列转换为字符串形式
     unicode_series = convert_to_unicode(symbols, value2unicode)
-    print(f"unicode_series: {unicode_series}")
+    # print(f"unicode_series: {unicode_series}")
     symbol_str = ''.join(unicode_series)
 
-    print(f"symbol_str: {symbol_str}")
-    print(len(symbol_str))
+    # print(f"symbol_str: {symbol_str}")
+    # print(len(symbol_str))
     # 初始化BPE模型
     BPE_model = models.BPE()
     tokenizer = Tokenizer(BPE_model)
 
     # 定义预处理器和训练器
-    trainer = trainers.BpeTrainer(vocab_size=num_bins, min_frequency=1,max_token_length=(num_bins//2)+1)
+    trainer = trainers.BpeTrainer(vocab_size=num_bins, min_frequency=1,max_token_length=500)
 
     # 训练模型
     tokenizer.train_from_iterator([symbol_str], trainer)
@@ -75,33 +81,54 @@ if __name__ == '__main__':
 
     # 编码
     encoded = tokenizer.encode(symbol_str)
-    print(f"Encoded symbols: {encoded.tokens}")
+    # print(f"Encoded symbols: {encoded.tokens}")
 
     # 解码
     decoded = tokenizer.decode(encoded.ids,skip_special_tokens=False)
 
-    print(f"Decoded symbols=={decoded}")
-    print(len(decoded))
+    # print(f"Decoded symbols=={decoded}")
+    # print(len(decoded))
 
+    tokens = decoded.split()
+    # print(len(tokens))
+    # print(encoded.ids)
     # 将解码后的符号序列转换回原始形式
     decoded_symbols = convert_to_discretized(decoded,unicode2value)
-    print(len(decoded_symbols))
-    print(f"Decoded symbols (list): {decoded_symbols}")
+    # print(len(decoded_symbols))
+    # print(f"Decoded symbols (list): {decoded_symbols}")
 
     # 将解码后的符号序列转换回原始形式
     # decoded_symbols = list(map(int, decoded.split()))
     # print(f"Decoded symbols (list): {decoded_symbols}")
-
-
-
-
-    # 还原时间序列数据
-    restored_series = restore_series(decoded_symbols, np.linspace(min(time_series), max(time_series), num_bins + 1))
-    print(f"Restored time series: {restored_series}")
-    print(len(restored_series))
+    colors = ['red','green','blue','yellow']
+    timestamp_end = 0
 
     plt.subplot(2, 2, 2)
-    plt.plot(timestamp, restored_series)
+    bins = np.linspace(min(time_series), max(time_series), num_bins + 1)
+    for index,token in enumerate(tokens):
+        token_len = len(token)
+        if(index==0):timestamp_token = range(timestamp_end,timestamp_end+token_len+1)
+        else:timestamp_token = range(timestamp_end,timestamp_end+token_len)
+        timestamp_end = timestamp_end + len(timestamp_token)
+        token_decoded_symbols = convert_to_discretized(token, unicode2value)
+        restored_series = restore_series(token_decoded_symbols, bins)
 
+        original_token = np.cumsum(np.insert(restored_series, 0, first_element))
+        first_element=original_token[-1]
+        if(index==0):original_token = original_token
+        else:original_token = original_token[1:]
+        plt.plot(timestamp_token,original_token,color=colors[encoded.ids[index]%len(colors)])
+
+    # 还原时间序列数据
+    restored_series = restore_series(decoded_symbols, bins)
+    # print(f"Restored time series: {restored_series}")
+    # print(len(restored_series))
+
+    plt.subplot(2, 2, 3)
+    plt.plot(range(0,len(restored_series)), restored_series)
+
+
+    plt.subplot(2, 2, 4)
+    plt.plot(range(0,len(time_series)), time_series)
     plt.show()
 

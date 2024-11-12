@@ -45,10 +45,6 @@ def fft(ts):
     # 1. 快速傅里叶变换（FFT）
     result = np.fft.fft(ts)
     magnitude = np.abs(result)  # 幅度谱
-
-    print(freqs)
-    print(result)
-    print(magnitude)
     return result,freqs,magnitude
 
 def freq_filter(ts,freq):

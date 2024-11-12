@@ -14,6 +14,7 @@ if __name__ == '__main__':
     for file in files:
         # ,3,5,7,8,9,12,13,18,21,2317
         if num in (3, 7, 9, 12, 13, 18, 21, 23):
+            print(file)
             df = pd.read_csv(file)
             # (df - df.min()) / (df.max() - df.min())
             values = df.head(800)['value']

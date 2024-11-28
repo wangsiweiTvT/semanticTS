@@ -59,11 +59,11 @@ def restore_tokens(tokens:list,bins,if_diff:bool,first_element=0):
 if __name__ == '__main__':
 
     # ETT
-    df = pd.read_csv('../2018aiops_dataset/54e8a140f6237526_32992.csv')
-    time_series = df.head(800)['value']
-    timestamp = list(range(0, 800, 1))
+    # df = pd.read_csv('../2018aiops_dataset/54e8a140f6237526_32992.csv')
+    # time_series = df.head(800)['value']
+    # timestamp = list(range(0, 800, 1))
     # 合成
-    # timestamp, time_series, s, t = synthesis(1000, 0.001, [25,50, 100, 200, 400], [1,1, 1, 1, 1])
+    timestamp, time_series, s, t = synthesis(1000, 0.001, [25,50, 100, 200, 400], [1,1, 1, 1, 1])
 
 
     # 原序列
@@ -71,21 +71,18 @@ if __name__ == '__main__':
     plt.plot(range(0,len(time_series)), time_series)
 
     # 去高频
-    time_series = freq_filter(time_series,50)
-    plt.subplot(2, 2, 2)
-    plt.plot(range(0,len(time_series)), time_series)
-    # plt.show()
-
-
+    # time_series = freq_filter(time_series,50)
+    # plt.subplot(2, 2, 2)
+    # plt.plot(range(0,len(time_series)), time_series)
 
     first_element = time_series[0]
     #差分
-    df = pd.DataFrame(time_series, columns=['value'])
-    df['first_diff'] = df['value'].diff()
-    time_series = df['first_diff'][1:]
+    # df = pd.DataFrame(time_series, columns=['value'])
+    # df['first_diff'] = df['value'].diff()
+    # time_series = df['first_diff'][1:]
 
 
-    num_bins = len(time_series)
+    num_bins = 100
     # 将时间序列数据离散化为索引 [478 478 501 503 485 465 440 431 395 366 333 329 348 387 368 275 229 222]
     symbols = discretize_series(time_series, num_bins)
     # print(f"Discretized symbols: {symbols}")
@@ -101,7 +98,7 @@ if __name__ == '__main__':
     tokenizer = Tokenizer(BPE_model)
 
     # 定义预处理器和训练器
-    trainer = trainers.BpeTrainer(vocab_size=num_bins, min_frequency=1,max_token_length=500)
+    trainer = trainers.BpeTrainer( min_frequency=1,max_token_length=20)
 
     # 训练模型
     tokenizer.train_from_iterator([symbol_str], trainer)
@@ -124,23 +121,23 @@ if __name__ == '__main__':
 
     plt.subplot(2, 2, 3)
     bins = np.linspace(min(time_series), max(time_series), num_bins + 1)
-    time_list,origin_value_list =restore_tokens(if_diff=True,tokens=tokens,bins=bins,first_element=first_element)
-    # time_list,origin_value_list =restore_tokens(if_diff=False,tokens=tokens,bins=bins)
+    # time_list,origin_value_list =restore_tokens(if_diff=True,tokens=tokens,bins=bins,first_element=first_element)
+    time_list,origin_value_list =restore_tokens(if_diff=False,tokens=tokens,bins=bins)
     for index, time in enumerate(time_list):
         plt.plot(time, origin_value_list[index], color=colors[encoded.ids[index] % len(colors)])
 
-    plt.show()
+
     # 还原时间序列数据
-    # restored_series = restore_series(decoded_symbols, bins)
+    restored_series = restore_series(decoded_symbols, bins)
     # restored_series = restore_tokens(if_diff=True,tokens = [decoded_symbols], bins=bins,first_element=first_element)
     # restored_series = restore_tokens(if_diff=False,tokens = [decoded_symbols], bins=bins)
     # print(f"Restored time series: {restored_series}")
     # print(len(restored_series))
 
-    # plt.subplot(2, 2, 4)
-    # plt.plot(range(0,len(restored_series)), restored_series)
+    plt.subplot(2, 2, 4)
+    plt.plot(range(0,len(restored_series)), restored_series)
 
-
+    plt.show()
 
 
 

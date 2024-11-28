@@ -10,13 +10,14 @@ from sklearn.metrics import accuracy_score
 import joblib
 from sklearn.ensemble import RandomForestClassifier
 
+model = SVC(kernel='rbf', gamma=0.7, C=1.0)
 
 
 
 
 if __name__ == '__main__':
     df = pd.read_csv('/Users/wangsiwei/Desktop/训练数据group3.csv')
-    df = df.sample(n=100000, random_state=42)
+    # df = df.sample(n=100000, random_state=42)
 
     df_x = df.iloc[:, :53]
     df_x_normalized = (df_x - df_x.min()) / (df_x.max() - df_x.min())
@@ -28,27 +29,33 @@ if __name__ == '__main__':
     # X = df_x_normalized.iloc[:, 35:53]
     X = df_x_normalized
     y_class = df['leakPipeId']
-    y_reg = df['leakage']
-    X_train, X_test, y_train, y_test = train_test_split(X, y_class, test_size=0.2, random_state=42)
 
-    # classifier = SVC(kernel='rbf', random_state=42)
-    classifier = RandomForestClassifier(random_state=42)
+    result = pd.concat([df_x_normalized, y_class], axis=1)
+    result = result.sort_values(by='leakPipeId')
 
-    # 训练模型
-    # classifier.fit(X_train, y_train)
-    # 保存模型
-    # joblib.dump(classifier, 'randomfore_18_10W.joblib')
+    result.to_csv('/Users/wangsiwei/Desktop/训练数据group3_norme.csv')
 
-    # 加载模型
-    loaded_model = joblib.load('randomfore_18_10W.joblib')
-
-    # 预测测试集
-    y_pred = loaded_model.predict(X_test)
-
-    # 计算准确度
-    accuracy = accuracy_score(y_test, y_pred)
-
-    print("测试集准确度:", accuracy)
+    # y_reg = df['leakage']
+    # X_train, X_test, y_train, y_test = train_test_split(X, y_class, test_size=0.2, random_state=42)
+    #
+    # # classifier = SVC(kernel='rbf', random_state=42)
+    # classifier = RandomForestClassifier(random_state=42)
+    #
+    # # 训练模型
+    # # classifier.fit(X_train, y_train)
+    # # 保存模型
+    # # joblib.dump(classifier, 'randomfore_18_10W.joblib')
+    #
+    # # 加载模型
+    # loaded_model = joblib.load('randomfore_18_10W.joblib')
+    #
+    # # 预测测试集
+    # y_pred = loaded_model.predict(X_test)
+    #
+    # # 计算准确度
+    # accuracy = accuracy_score(y_test, y_pred)
+    #
+    # print("测试集准确度:", accuracy)
 
 
 

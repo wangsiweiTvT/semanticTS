@@ -30,38 +30,25 @@ df_x_normalized = df_x_normalized.fillna(0)
 # 特征和目标变量
 # X = df_x_normalized.iloc[:, :35]
 # X = df_x_normalized.iloc[:, 35:53]
-X = df_x_normalized
-y_class = df['label_index']
+X = df_x_normalized.values
+y = df['label_index'].values
 
 # 特征标准化
 scaler = StandardScaler()
 X = scaler.fit_transform(X)
 
+# PCA降维
+# pca = PCA(n_components=30)  # 设置合适的维度
+# X = pca.fit_transform(X)
+
 # 转换为 Tensor
-X = torch.tensor(X, dtype=torch.float32) # 添加一个维度以匹配 Transformer 输入格式
-y = torch.tensor(y_class, dtype=torch.long)
+X = torch.tensor(X, dtype=torch.float32)
+y = torch.tensor(y, dtype=torch.long)
+
 
 y_reg = df['leakage']
-X_train, X_temp, y_train, y_temp = train_test_split(X, y_class, test_size=0.2, random_state=42)
+X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.2, random_state=42)
 X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
-
-# 标准化特征
-# scaler = StandardScaler()
-# X_train_scaled = scaler.fit_transform(X_train)
-# X_test_scaled = scaler.transform(X_test)
-
-# 转换为张量
-# X_train_tensor = torch.tensor(X_train_scaled, dtype=torch.float32)
-# y_train_tensor = torch.tensor(y_train, dtype=torch.long)
-#
-#
-#
-# X_test_tensor = torch.tensor(X_test_scaled, dtype=torch.float32)
-# y_test_tensor = torch.tensor(y_test.to_numpy(), dtype=torch.long)
-
-# 创建数据加载器
-# train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
-# train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True)
 
 train_dataset = TensorDataset(X_train, y_train)
 val_dataset = TensorDataset(X_val, y_val)
@@ -89,7 +76,7 @@ class NeuralNet(nn.Module):
 
 
 # 初始化模型、损失函数和优化器
-input_size = X_train_scaled.shape[1]
+input_size = X.shape[1]
 hidden_size = 256
 num_classes = len(original_labels)
 model = NeuralNet(input_size, hidden_size, num_classes)

@@ -9,10 +9,12 @@ import pandas as pd
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.metrics import classification_report
+from sklearn.random_projection import SparseRandomProjection
+from sklearn.preprocessing import PolynomialFeatures
 
+#MLP PCA  hiddensize 512  df_x_normalized = (df_x - df_x.mean()) / df_x.std()  df_x = df.iloc[:, :53]  0.68
 
-
-df = pd.read_csv('/Users/wangsiwei/Desktop/训练数据group3.csv')
+df = pd.read_csv('e:/dataset/test2.0/test2.0/训练数据group3.csv')
 # df = df.sample(n=100000, random_state=42)
 
 original_labels = df['leakPipeId'].unique()
@@ -21,25 +23,30 @@ index_to_label = {idx: label for label, idx in label_to_index.items()}
 df['label_index'] = df['leakPipeId'].map(label_to_index)
 
 
-df_x = df.iloc[:, :53]
-df_x_normalized = (df_x - df_x.min()) / (df_x.max() - df_x.min())
-df_x_normalized = df_x_normalized.fillna(0)
-# print(df_x_normalized.describe())
-# pca = PCA(n_components=30)  # 设置合适的维度
-# X = pca.fit_transform(df_x)
-# 特征和目标变量
-# X = df_x_normalized.iloc[:, :35]
-# X = df_x_normalized.iloc[:, 35:53]
-X = df_x_normalized.values
-y = df['label_index'].values
+df_x = df.iloc[:, 0:53]
 
+# df_x = np.log1p(df_x)
+# df_x_normalized = (df_x - df_x.min()) / (df_x.max() - df_x.min())
+df_x_normalized = (df_x - df_x.mean()) / df_x.std()
+df_x_normalized = df_x_normalized.fillna(0)
+
+# 创建RandomProjection对象，设置目标维度为128
+transformer = SparseRandomProjection(n_components=1500)
+# 对输入向量进行升维
+X = transformer.fit_transform(df_x_normalized)
 # 特征标准化
 scaler = StandardScaler()
 X = scaler.fit_transform(X)
 
+# 特征和目标变量
+# X = df_x_normalized.values
+y = df['label_index'].values
+
 # PCA降维
-# pca = PCA(n_components=30)  # 设置合适的维度
-# X = pca.fit_transform(X)
+pca = PCA(n_components=1500)  # 设置合适的维度
+X = pca.fit_transform(X)
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # 转换为 Tensor
 X = torch.tensor(X, dtype=torch.float32)
@@ -54,46 +61,55 @@ train_dataset = TensorDataset(X_train, y_train)
 val_dataset = TensorDataset(X_val, y_val)
 test_dataset = TensorDataset(X_test, y_test)
 
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=64)
-test_loader = DataLoader(test_dataset, batch_size=64)
+train_loader = DataLoader(train_dataset, batch_size=2048, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=2048)
+test_loader = DataLoader(test_dataset, batch_size=2048)
 
 
 
 # 定义神经网络模型
 class NeuralNet(nn.Module):
-    def __init__(self, input_size, hidden_size, num_classes):
+    def __init__(self, input_size, hidden_size1, num_classes):
         super(NeuralNet, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc1 = nn.Linear(input_size, hidden_size1)
         self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(hidden_size, num_classes)
+        # self.fc2 = nn.Linear(hidden_size1, hidden_size2)
+        # self.relu = nn.ReLU()
+        # self.fc3 = nn.Linear(hidden_size2, hidden_size3)
+        # self.relu = nn.ReLU()
+        self.fc4 = nn.Linear(hidden_size1, num_classes)
 
     def forward(self, x):
         out = self.fc1(x)
         out = self.relu(out)
-        out = self.fc2(out)
+        # out = self.fc2(out)
+        # out = self.relu(out)
+        # out = self.fc3(out)
+        # out = self.relu(out)
+        out = self.fc4(out)
         return out
+
 
 
 # 初始化模型、损失函数和优化器
 input_size = X.shape[1]
-hidden_size = 256
+hidden_size1 = 2048
+# hidden_size2 = 512
+# hidden_size3 = 2048
 num_classes = len(original_labels)
-model = NeuralNet(input_size, hidden_size, num_classes)
+model = NeuralNet(input_size, hidden_size1,num_classes).to(device)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
+# scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, factor=0.5)
+
 # 早停机制
 best_val_loss = float('inf')
-patience = 3  # 容忍的 epoch 数
+patience = 5  # 容忍的 epoch 数
 trigger_times = 0
-
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 # 训练模型
-num_epochs = 5000
+num_epochs = 500
 for epoch in range(num_epochs):
     model.train()
     running_loss = 0.0
@@ -133,7 +149,7 @@ for epoch in range(num_epochs):
     print(f"Epoch {epoch + 1}/{num_epochs}, Validation Loss: {val_loss:.4f}")
 
     # 学习率调度器更新
-    scheduler.step()
+    scheduler.step(val_loss)
 
     # 早停逻辑
     if val_loss < best_val_loss:

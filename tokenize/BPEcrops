@@ -1,0 +1,121 @@
+Recently, time series foundation models have shown promising zero-shot forecasting performance on time series from a wide range of domains. However, it
+remains unclear whether their success stems from a true understanding of temporal
+dynamics or simply from memorizing the training data. While implicit reasoning
+in language models has been studied, similar evaluations for time series models
+have been largely unexplored. This work takes an initial step toward assessing the
+reasoning abilities of deep time series forecasting models. We find that certain
+linear, MLP-based, and patch-based Transformer models generalize effectively in
+systematically orchestrated out-of-distribution scenarios, suggesting underexplored
+reasoning capabilities beyond simple pattern memorization.
+Foundation models have demonstrated an exceptional ability to generalize to previously unseen data
+in zero-shot prediction tasks. Inspired by the success of such models in Natural Language Processing,
+recent work has adapted Transformers to build time series foundation models (TSFM). Zero-shot
+inference is particularly important for time series models, which must handle complex patterns,
+seasonal variations, and emerging trends where little to no reference data may be available.
+Foundation models are trained on large, diverse datasets, raising a critical question for time series
+forecasting: do these models generalize well because they learn underlying concepts of temporal
+dynamics, or do they simply memorize specific patterns seen during training? If models
+rely on memorization, particularly in the form of time series pattern matching, it could lead to
+redundant knowledge storage, parameter inefficiency, and limit their ability to generalize well to
+out-of-distribution (OOD) data. Ideally, a TSFM should be capable of implicit reasoning, allowing it
+not to depend solely on memorization but to infer latent temporal dynamics. Such models would be
+able to generalize from fewer data points, offering enhanced parameter efficiency and robustness.
+While extensive research has been conducted to evaluate memorization and implicit reasoning in
+language models, similar evaluations for time series models have been largely unexplored. In this
+work, we take an initial step toward evaluating the implicit reasoning capabilities of time series models
+in forecasting tasks. Our findings highlight the potential of linear, MLP-based, and patch-based
+Transformer models to perform well in carefully orchestrated OOD scenarios, suggesting that these
+models may have untapped capabilities in reasoning beyond mere memorization.
+Implicit Reasoning in LLMs. Prior research has explored implicit reasoning in language models
+[1, 2, 25, 30, 32]. Implicit reasoning is often assessed through tasks that require models to apply
+knowledge learned during training to new test instances. One common form is composition, where
+models must chain multiple facts to answer a question [25, 30, 32]. Other forms of implicit reasoning
+explored include comparison and inverse search [1, 25]. Comparison involves models evaluating two
+or more entities to make judgments, such as determining whether the attribute value of one entity is
+greater or smaller than that of another. Inverse search tests a model’s ability to generate predictions in
+the reverse order of the training task. For example, this could involve applying the model to identify
+an entity based on its attributes when it was originally trained to predict the attributes of entities.
+More information on related work is provided in Appendix A.1. No prior research has conducted
+controlled experiments in time series forecasting to evaluate implicit reasoning on OOD data. Our
+study addresses this gap by introducing a novel framework that aligns LLM research with time series
+models, offering insights into optimal architectures for future TSFM development.
+Time Series Foundation Models. Several foundation models, including Chronos [3],
+LagLlama [20], Moirai [27], MOMENT [11], TimesFM [7], TimeGPT [10], Timer [16], and Tiny
+Time Mixers [8], have been developed for time series forecasting. Some studies have also examined
+the impact of learning with synthetic data [3, 7]. MOMENT analyzed embeddings from synthetic sinusoids to isolate components like trends, while Chronos showed strong performance in forecasting
+composite series but struggled with exponential trends. These works demonstrate that TSFMs can
+learn distinct time series functions, though it remains unclear if their success is due to large-scale
+training or inherent reasoning abilities.
+
+We introduce Chronos, a simple yet effective framework for pretrained probabilistic time
+series models. Chronos tokenizes time series values using scaling and quantization into
+a fixed vocabulary and trains existing transformer-based language model architectures on
+these tokenized time series via the cross-entropy loss. We pretrained Chronos models
+based on the T5 family (ranging from 20M to 710M parameters) on a large collection of
+publicly available datasets, complemented by a synthetic dataset that we generated via
+Gaussian processes to improve generalization. In a comprehensive benchmark consisting of
+42 datasets, and comprising both classical local models and deep learning methods, we show
+that Chronos models: (a) significantly outperform other methods on datasets that were
+part of the training corpus; and (b) have comparable and occasionally superior zero-shot
+performance on new datasets, relative to methods that were trained specifically on them.
+Our results demonstrate that Chronos models can leverage time series data from diverse
+domains to improve zero-shot accuracy on unseen forecasting tasks, positioning pretrained
+models as a viable tool to greatly simplify forecasting pipelines.
+
+Time series forecasting is an essential component of decision-making across various domains, including retail,
+energy, finance, healthcare, climate science, among others. Traditionally, forecasting has been dominated by
+statistical models such as ARIMA and ETS. These have served as reliable tools, at least until the recent shift
+towards deep learning techniques (Hyndman & Athanasopoulos, 2018; Benidis et al., 2022). This shift can be
+attributed to the availability of large and diverse time series data sources, and the emergence of operational
+forecasting problems (Kolassa & Januschowski, 2019) that play to the strengths of deep forecasters, i.e., the
+ability to extract patterns out of a large collection of time series. Despite their impressive performance, deep
+forecasters still operate in the standard regime of training and prediction on the same dataset. While there
+have been works dedicated to transfer learning (Ye & Dai, 2018) and domain adaptation (Jin et al., 2022)
+for forecasting, the field has yet to converge on a unified, general-purpose forecasting model, a goal that
+remains a beacon for time series researchers.
+
+The emergence of large language models (LLMs) with zero-shot learning capabilities has ignited interest
+in developing “foundation models” for time series. In the context of LLMs, this interest has been pursued
+through two main avenues: directly prompting pretrained LLMs in natural language (Gruver et al., 2023;Xue & Salim, 2023) and fine-tuning LLMs for time series tasks (Zhou et al., 2023a; Jin et al., 2024). However,
+these methods face significant limitations, notably the need for prompt engineering or fine-tuning for each
+new task, or reliance on large-scale models (GPT-3 (Brown et al., 2020), Llama 2 (Touvron et al., 2023), etc.)
+that demand substantial computational resources and time for inference. Recent concurrent work (Dooley
+et al., 2023; Das et al., 2023; Rasul et al., 2023; Woo et al., 2024) also explores pretraining transformer-based
+models with sophisticated time-series-specific designs on a large corpus of real and (or) synthetic time series
+data.
+
+In this work, we take a step back and ask: what are the fundamental differences between a language model
+that predicts the next token, and a time series forecasting model that predicts the next values? Despite the
+apparent distinction — tokens from a finite dictionary versus values from an unbounded, usually continuous
+domain — both endeavors fundamentally aim to model the sequential structure of the data to predict future
+patterns. Shouldn’t good language models “just work” on time series? This naive question prompts us to
+challenge the necessity of time-series-specific modifications, and answering it led us to develop Chronos,
+a language modeling framework minimally adapted for time series forecasting. Chronos tokenizes time
+series into discrete bins through simple scaling and quantization of real values. In this way, we can train
+off-the-shelf language models on this “language of time series,” with no changes to the model architecture
+(see Figure 1 for a high-level depiction of Chronos). Remarkably, this straightforward approach proves
+to be effective and efficient, underscoring the potential for language model architectures to address a broad
+range of time series problems with minimal modifications.
+For the development of a useful general-purpose time series forecasting model, the scarcity of publicly
+available time series datasets, both in quantity and quality, is arguably more critical than the modeling
+framework. In addition to the comprehensive collection of public datasets we used to train Chronos, a
+central aspect of our approach is the integration of data augmentation strategies, including TSMixup and
+KernelSynth. TSMixup randomly samples a set of base time series from different training datasets, and
+generates new time series based on a convex combination of them; KernelSynth uses Gaussian processes
+to generate synthetic time series by randomly composing kernel functions. These techniques address the
+inherent limitations of small training datasets in time series forecasting, enhancing model robustness and
+generalization.
+Our comprehensive evaluation across 42 datasets establishes Chronos as a benchmark for both in-domain
+and zero-shot forecasting, surpassing both traditional models and task-specific deep learning approaches.
+
+Notably, Chronos achieves impressive zero-shot forecasting performance out of the box, without necessitating task-specific adjustments. Its accuracy, coupled with its relatively modest model size, positions it as
+a preferable alternative to larger, more computationally demanding models for zero-shot forecasting applications. By its very nature as a language model operating over a fixed vocabulary, Chronos can seamlessly
+integrate with future advancements in LLMs, making it an ideal candidate for further development as a
+generalist time series model.
+The rest of the paper is organized as follows. Section 2 introduces the background on time series forecasting
+and language models, and discusses related work. In Section 3, we describe Chronos, our proposed language
+modeling framework for time series. Section 4 discusses our data augmentation technique and synthetic time
+series generation process. In Section 5, we present our main results and a rigorous analysis of different design
+choices. We discuss future directions in Section 6, and conclude the paper in Section 7. Additional material
+is presented in the appendices.
+

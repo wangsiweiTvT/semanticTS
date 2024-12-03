@@ -6,7 +6,7 @@ import matplotlib.dates as mdates
 
 
 
-def synthesis(L,k,T,A):
+def synthesis(L,k,T,A,sigma):
     r"""
 
     11.4 : 想要体现TS中的语义,借鉴 word2vec中的 idea
@@ -24,17 +24,19 @@ def synthesis(L,k,T,A):
     :param k: dec incr of TS
     :param T: list of temp
     :param A: list of amplitude
+    :param sigma:
     :return:
     """
     timestamp=list(range(0,L,1))
     trend_value = list()
     season_value = list()
     for i in range(0,L):
+        noise = np.random.normal(0, sigma)
         trend_value.append(i*k)
         season_tmp = 0
         for j in range(0,len(T)):
             season_tmp = season_tmp + (A[j]*math.sin((2*math.pi/T[j])*i))
-        season_value.append(season_tmp)
+        season_value.append(season_tmp+noise)
 
     mix = [x + y for x, y in zip(season_value, trend_value)]
     return timestamp,mix,season_value,trend_value

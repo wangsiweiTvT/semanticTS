@@ -1,15 +1,22 @@
 import numpy as np
-from tokenizers import Tokenizer, models, trainers, pre_tokenizers
-import pandas as pd
+from tokenizers import Tokenizer, models, trainers
 import matplotlib.pyplot as plt
 from synthesisTS import synthesis
-import unicodedata
-from synthesisTS import freq_filter
+from gensim.models import Word2Vec
+from gensim.utils import simple_preprocess
+
+
+
+# 添加高斯噪声
+def add_gaussian_noise(time_series, sigma):
+    noise = np.random.normal(0, sigma, np.array(time_series).shape)
+    noisy_time_series = time_series + noise
+    return noisy_time_series
 
 def create_value_to_unicode_map(discretized_data):
     unique_values = sorted(set(value for value in discretized_data))
-    value2unicode = {value: chr(i + 0x10000) for i, value in enumerate(unique_values)}
-    unicode2value = {chr(i + 0x10000): value for i, value in enumerate(unique_values)}
+    value2unicode = {value: chr(i+1000) for i, value in enumerate(unique_values)}
+    unicode2value = {chr(i+1000): value for i, value in enumerate(unique_values)}
     return value2unicode,unicode2value
 
 def convert_to_unicode(discretized_data, value2unicode):
@@ -17,6 +24,8 @@ def convert_to_unicode(discretized_data, value2unicode):
     return unicode_series
 
 
+
+# 将unicode 转成离散的idx ,进一步可以转化回真值       &$#*@ @$&$* $*& #@^&@ $#*^(#@^@#*&&(^$ -> 1,2,3,4,5
 def convert_to_discretized(decoded, unicode2value):
     idx = list()
     for value in decoded:
@@ -63,12 +72,15 @@ if __name__ == '__main__':
     # time_series = df.head(800)['value']
     # timestamp = list(range(0, 800, 1))
     # 合成
-    timestamp, time_series, s, t = synthesis(1000, 0.001, [25,50, 100, 200, 400], [1,1, 1, 1, 1])
+    timestamp, time_series, s, t = synthesis(10000, 0.000, [25,30, 40, 125, 150,200], [1,1, 1, 1, 1,1],0.0)
 
 
     # 原序列
     plt.subplot(2, 2, 1)
     plt.plot(range(0,len(time_series)), time_series)
+
+    # plt.subplot(2, 2, 2)
+    # plt.plot(range(0,len(time_series)), time_series)
 
     # 去高频
     # time_series = freq_filter(time_series,50)
@@ -80,6 +92,7 @@ if __name__ == '__main__':
     # df = pd.DataFrame(time_series, columns=['value'])
     # df['first_diff'] = df['value'].diff()
     # time_series = df['first_diff'][1:]
+
 
 
     num_bins = 100
@@ -98,7 +111,7 @@ if __name__ == '__main__':
     tokenizer = Tokenizer(BPE_model)
 
     # 定义预处理器和训练器
-    trainer = trainers.BpeTrainer( min_frequency=1,max_token_length=20)
+    trainer = trainers.BpeTrainer( min_frequency=1,max_token_length=50)
 
     # 训练模型
     tokenizer.train_from_iterator([symbol_str], trainer)
@@ -109,35 +122,66 @@ if __name__ == '__main__':
     # 编码
     encoded = tokenizer.encode(symbol_str)
 
+    vocab = tokenizer.get_vocab()
+
+
     # 解码
     decoded = tokenizer.decode(encoded.ids,skip_special_tokens=False)
-
+    print(decoded)
     tokens = decoded.split()
+    print(tokens)
+    tsBPE2vec_model = Word2Vec(sentences=[tokens], vector_size=100, window=10, min_count=0, workers=4)
 
+    print(tsBPE2vec_model.wv.key_to_index.keys())
     decoded_symbols = convert_to_discretized(decoded,unicode2value)
 
     colors = ['red','green','blue','yellow']
     timestamp_end = 0
 
-    plt.subplot(2, 2, 3)
+    # plt.subplot(2, 2, 3)
     bins = np.linspace(min(time_series), max(time_series), num_bins + 1)
     # time_list,origin_value_list =restore_tokens(if_diff=True,tokens=tokens,bins=bins,first_element=first_element)
     time_list,origin_value_list =restore_tokens(if_diff=False,tokens=tokens,bins=bins)
-    for index, time in enumerate(time_list):
-        plt.plot(time, origin_value_list[index], color=colors[encoded.ids[index] % len(colors)])
+    # for index, time in enumerate(time_list):
+    #     plt.plot(time, origin_value_list[index], color=colors[encoded.ids[index] % len(colors)])
 
 
     # 还原时间序列数据
-    restored_series = restore_series(decoded_symbols, bins)
+    # restored_series = restore_series(decoded_symbols, bins)
     # restored_series = restore_tokens(if_diff=True,tokens = [decoded_symbols], bins=bins,first_element=first_element)
     # restored_series = restore_tokens(if_diff=False,tokens = [decoded_symbols], bins=bins)
     # print(f"Restored time series: {restored_series}")
     # print(len(restored_series))
 
-    plt.subplot(2, 2, 4)
-    plt.plot(range(0,len(restored_series)), restored_series)
 
-    plt.show()
+    # plt.plot(range(0,len(restored_series)), restored_series)
+
+    for token, index in vocab.items():
+        if(len(token)>30):
+            plt.subplot(2, 2, 4)
+            time_list, origin_value_list = restore_tokens(if_diff=False, tokens=[token], bins=bins)
+            for index, time in enumerate(time_list):
+                plt.plot(time, origin_value_list[index],color='red')
+            # 找到与某个词最相似的词
+            similar_token = tsBPE2vec_model.wv.most_similar(token, topn=3)
+            print("Most similar words to 'simple':", similar_token)
+            for word,score in similar_token:
+                sim_time_list, sim_origin_value_list = restore_tokens(if_diff=False, tokens=[word], bins=bins)
+                for index, time in enumerate(sim_time_list):
+                    plt.plot(time, sim_origin_value_list[index])
+            plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

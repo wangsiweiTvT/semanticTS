@@ -1,6 +1,7 @@
 import numpy as np
 from tokenizers import Tokenizer, models, trainers
 import matplotlib.pyplot as plt
+import pandas as pd
 from synthesisTS import synthesis
 from gensim.models import Word2Vec
 from gensim.utils import simple_preprocess
@@ -68,11 +69,12 @@ def restore_tokens(tokens:list,bins,if_diff:bool,first_element=0):
 if __name__ == '__main__':
 
     # ETT
-    # df = pd.read_csv('../2018aiops_dataset/54e8a140f6237526_32992.csv')
-    # time_series = df.head(800)['value']
-    # timestamp = list(range(0, 800, 1))
+    df = pd.read_csv('/Users/wangsiwei/Desktop/sematics4TS/ETT-small/ETTm1.csv')
+    time_series = df['OT']
+    print(time_series.size)
+    timestamp = list(range(0, time_series.size, 1))
     # 合成
-    timestamp, time_series, s, t = synthesis(10000, 0.000, [25,30, 40, 125, 150,200], [1,1, 1, 1, 1,1],0.0)
+    # timestamp, time_series, s, t = synthesis(500000, 0.000, [25,30, 40, 125, 150,500], [1,1, 1, 1, 1,1],0.0)
 
 
     # 原序列
@@ -95,7 +97,7 @@ if __name__ == '__main__':
 
 
 
-    num_bins = 100
+    num_bins = 200
     # 将时间序列数据离散化为索引 [478 478 501 503 485 465 440 431 395 366 333 329 348 387 368 275 229 222]
     symbols = discretize_series(time_series, num_bins)
     # print(f"Discretized symbols: {symbols}")
@@ -111,7 +113,7 @@ if __name__ == '__main__':
     tokenizer = Tokenizer(BPE_model)
 
     # 定义预处理器和训练器
-    trainer = trainers.BpeTrainer( min_frequency=1,max_token_length=50)
+    trainer = trainers.BpeTrainer( min_frequency=1,max_token_length=100)
 
     # 训练模型
     tokenizer.train_from_iterator([symbol_str], trainer)
@@ -122,17 +124,16 @@ if __name__ == '__main__':
     # 编码
     encoded = tokenizer.encode(symbol_str)
 
-    vocab = tokenizer.get_vocab()
+    # vocab = tokenizer.get_vocab()
 
 
     # 解码
     decoded = tokenizer.decode(encoded.ids,skip_special_tokens=False)
-    print(decoded)
+    # print(decoded)
     tokens = decoded.split()
-    print(tokens)
+    print(len(tokens))
     tsBPE2vec_model = Word2Vec(sentences=[tokens], vector_size=100, window=10, min_count=0, workers=4)
-
-    print(tsBPE2vec_model.wv.key_to_index.keys())
+    vocab = tsBPE2vec_model.wv.key_to_index.keys()
     decoded_symbols = convert_to_discretized(decoded,unicode2value)
 
     colors = ['red','green','blue','yellow']
@@ -156,14 +157,14 @@ if __name__ == '__main__':
 
     # plt.plot(range(0,len(restored_series)), restored_series)
 
-    for token, index in vocab.items():
-        if(len(token)>30):
+    for token in vocab:
+        if(len(token)>20):
             plt.subplot(2, 2, 4)
             time_list, origin_value_list = restore_tokens(if_diff=False, tokens=[token], bins=bins)
             for index, time in enumerate(time_list):
                 plt.plot(time, origin_value_list[index],color='red')
             # 找到与某个词最相似的词
-            similar_token = tsBPE2vec_model.wv.most_similar(token, topn=3)
+            similar_token = tsBPE2vec_model.wv.most_similar(token, topn=1)
             print("Most similar words to 'simple':", similar_token)
             for word,score in similar_token:
                 sim_time_list, sim_origin_value_list = restore_tokens(if_diff=False, tokens=[word], bins=bins)

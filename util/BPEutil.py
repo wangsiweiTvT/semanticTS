@@ -70,16 +70,33 @@ if __name__ == '__main__':
 
     # ETT
     df = pd.read_csv('/Users/wangsiwei/Desktop/sematics4TS/ETT-small/ETTm1.csv')
-    time_series = df['OT']
+    time_series1 = df['HUFL']
+    time_series2 = df['HULL']
+    time_series3 = df['MUFL']
+    time_series4 = df['MULL']
+    time_series5 = df['LUFL']
+    time_series6 = df['LULL']
+    time_series7 = df['OT']
+
+
+
+    time_series = time_series7
     print(time_series.size)
     timestamp = list(range(0, time_series.size, 1))
     # 合成
     # timestamp, time_series, s, t = synthesis(500000, 0.000, [25,30, 40, 125, 150,500], [1,1, 1, 1, 1,1],0.0)
 
-
     # 原序列
     plt.subplot(2, 2, 1)
-    plt.plot(range(0,len(time_series)), time_series)
+    plt.plot(range(0, len(time_series)), time_series1,color = 'red')
+    plt.plot(range(0, len(time_series)), time_series2,color = 'yellow')
+    plt.plot(range(0, len(time_series)), time_series3,color = 'blue')
+    plt.plot(range(0, len(time_series)), time_series4,color = 'green')
+    plt.plot(range(0, len(time_series)), time_series5,color = 'pink')
+    plt.plot(range(0, len(time_series)), time_series6,color = 'purple')
+    plt.plot(range(0, len(time_series)), time_series7,color = 'black')
+
+    # plt.plot(range(0,len(time_series)), time_series)
 
     # plt.subplot(2, 2, 2)
     # plt.plot(range(0,len(time_series)), time_series)
@@ -97,7 +114,7 @@ if __name__ == '__main__':
 
 
 
-    num_bins = 200
+    num_bins = 100
     # 将时间序列数据离散化为索引 [478 478 501 503 485 465 440 431 395 366 333 329 348 387 368 275 229 222]
     symbols = discretize_series(time_series, num_bins)
     # print(f"Discretized symbols: {symbols}")

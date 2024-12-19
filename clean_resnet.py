@@ -9,7 +9,7 @@ from sklearn.metrics import classification_report
 from torch.utils.data import DataLoader, TensorDataset
 
 # 数据预处理
-file_path = "训练数据group3.csv"
+file_path = "/Users/wangsiwei/Desktop/训练数据group3.csv"
 data = pd.read_csv(file_path)
 
 # 数据清洗
@@ -52,6 +52,23 @@ test_dataset = TensorDataset(X_test, y_test)
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=64)
 test_loader = DataLoader(test_dataset, batch_size=64)
+
+
+# 定义神经网络模型
+class NeuralNet(nn.Module):
+    def __init__(self, input_size, hidden_size, num_classes):
+        super(NeuralNet, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(hidden_size, num_classes)
+
+    def forward(self, x):
+        out = self.fc1(x)
+        out = self.relu(out)
+        out = self.fc2(out)
+        return out
+
+
 
 # ResNet模型定义
 class ResNetClassifier(nn.Module):

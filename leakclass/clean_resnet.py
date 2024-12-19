@@ -53,23 +53,6 @@ train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=64)
 test_loader = DataLoader(test_dataset, batch_size=64)
 
-
-# 定义神经网络模型
-class NeuralNet(nn.Module):
-    def __init__(self, input_size, hidden_size, num_classes):
-        super(NeuralNet, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size)
-        self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(hidden_size, num_classes)
-
-    def forward(self, x):
-        out = self.fc1(x)
-        out = self.relu(out)
-        out = self.fc2(out)
-        return out
-
-
-
 # ResNet模型定义
 class ResNetClassifier(nn.Module):
     def __init__(self, input_dim, num_classes, num_blocks=3, hidden_dim=128):

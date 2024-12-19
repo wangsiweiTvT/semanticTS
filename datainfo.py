@@ -16,12 +16,15 @@ model = SVC(kernel='rbf', gamma=0.7, C=1.0)
 
 
 if __name__ == '__main__':
-    df = pd.read_csv('/Users/wangsiwei/Desktop/训练数据group3.csv')
+    df = pd.read_csv('e:/dataset/test2.0/test2.0/训练数据group3.csv')
     # df = df.sample(n=100000, random_state=42)
 
     df_x = df.iloc[:, :53]
-    df_x_normalized = (df_x - df_x.min()) / (df_x.max() - df_x.min())
+    df_x = np.log1p(df_x)
+    df_x_normalized = (df_x - df_x.mean()) / df_x.std()
     df_x_normalized = df_x_normalized.fillna(0)
+    # df_x_normalized = (df_x - df_x.min()) / (df_x.max() - df_x.min())
+    # df_x_normalized = df_x_normalized.fillna(0)
     # print(df_x_normalized.describe())
 
     # 特征和目标变量
@@ -33,7 +36,7 @@ if __name__ == '__main__':
     result = pd.concat([df_x_normalized, y_class], axis=1)
     result = result.sort_values(by='leakPipeId')
 
-    result.to_csv('/Users/wangsiwei/Desktop/训练数据group3_norme.csv')
+    result.to_csv('e:/dataset/test2.0/test2.0/训练数据group3_norm.csv')
 
     # y_reg = df['leakage']
     # X_train, X_test, y_train, y_test = train_test_split(X, y_class, test_size=0.2, random_state=42)

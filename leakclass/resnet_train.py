@@ -163,10 +163,10 @@ if __name__ == "__main__":
 
     # 数据清洗
     data_cleaned = data
-    original_labels = data_cleaned['leakPipeId'].unique()
+    original_labels = data_cleaned['leakage'].unique()
     label_to_index = {label: idx for idx, label in enumerate(original_labels)}
     index_to_label = {idx: label for label, idx in label_to_index.items()}
-    data_cleaned['label_index'] = data_cleaned['leakPipeId'].map(label_to_index)
+    data_cleaned['label_index'] = data_cleaned['leakage'].map(label_to_index)
 
     # 特征与目标分离
     X = data_cleaned.iloc[:, :-3].values
@@ -268,8 +268,8 @@ if __name__ == "__main__":
     torch.save(model.state_dict(), 'improved_model_with_layers.pth')
 
     # 保存Scaler和PCA
-    joblib.dump(scaler, 'scaler.pkl')
-    joblib.dump(pca, 'pca.pkl')
+    joblib.dump(scaler, '../scaler.pkl')
+    joblib.dump(pca, '../pca.pkl')
 
     # 保存Label映射字典
     joblib.dump(label_to_index, 'label_to_index.pkl')

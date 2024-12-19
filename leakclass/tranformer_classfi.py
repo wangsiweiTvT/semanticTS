@@ -53,7 +53,7 @@ class TransformerClassifier(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim // 2, num_classes)
         )
-    
+
     def forward(self, x):
         x = self.embedding(x)  # 映射到隐藏维度
         x = self.transformer(x)  # Transformer 编码器
@@ -68,7 +68,7 @@ model = TransformerClassifier(input_dim=input_dim, num_classes=num_classes).to(d
 
 # 定义损失函数和优化器
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+optimizer = optim.Adam(model.parameters(), lr=0.0001)
 
 # 学习率调度器
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
@@ -120,7 +120,7 @@ for epoch in range(num_epochs):
         if trigger_times >= patience:
             print("Early stopping triggered. Stopping training.")
             break
-torch.save(model, 'transformer_model.pth')
+torch.save(model, '../transformer_model.pth')
 # 测试模型
 model.eval()
 all_preds = []

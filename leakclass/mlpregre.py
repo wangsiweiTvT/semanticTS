@@ -8,30 +8,26 @@ from torch.utils.data import TensorDataset, DataLoader
 import pandas as pd
 import numpy as np
 from sklearn.decomposition import PCA
-from sklearn.metrics import classification_report
 from sklearn.random_projection import SparseRandomProjection
-from sklearn.preprocessing import PolynomialFeatures
+from sklearn.metrics import mean_squared_error
 
-#MLP PCA  hiddensize 512  df_x_normalized = (df_x - df_x.mean()) / df_x.std()  df_x = df.iloc[:, :53]  0.68
 
+# 定义超参数
 df = pd.read_csv('e:/dataset/test2.0/test2.0/训练数据group3.csv')
 # df = df.sample(n=100000, random_state=42)
 
-original_labels = df['leakPipeId'].unique()
-label_to_index = {label: idx for idx, label in enumerate(original_labels)}
-index_to_label = {idx: label for label, idx in label_to_index.items()}
-df['label_index'] = df['leakPipeId'].map(label_to_index)
-
 
 df_x = df.iloc[:, 0:53]
-
 # df_x = np.log1p(df_x)
 # df_x_normalized = (df_x - df_x.min()) / (df_x.max() - df_x.min())
 df_x_normalized = (df_x - df_x.mean()) / df_x.std()
 df_x_normalized = df_x_normalized.fillna(0)
 
+y = df['leakage'].values/10
+# y_normalized = (y - y.mean()) / y.std()
+# y_normalized = y_normalized.fillna(0)
 # 创建RandomProjection对象，设置目标维度为128
-transformer = SparseRandomProjection(n_components=1500)
+transformer = SparseRandomProjection(n_components=1024)
 # 对输入向量进行升维
 X = transformer.fit_transform(df_x_normalized)
 # 特征标准化
@@ -40,20 +36,17 @@ X = scaler.fit_transform(X)
 
 # 特征和目标变量
 # X = df_x_normalized.values
-y = df['label_index'].values
-
+# y = scaler.fit_transform([[yi] for yi in y])
 # PCA降维
-pca = PCA(n_components=1500)  # 设置合适的维度
+pca = PCA(n_components=1024)  # 设置合适的维度
 X = pca.fit_transform(X)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # 转换为 Tensor
 X = torch.tensor(X, dtype=torch.float32)
-y = torch.tensor(y, dtype=torch.long)
+y = torch.tensor(y, dtype=torch.float32)
 
-
-y_reg = df['leakage']
 X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.2, random_state=42)
 X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
 
@@ -66,40 +59,30 @@ val_loader = DataLoader(val_dataset, batch_size=2048)
 test_loader = DataLoader(test_dataset, batch_size=2048)
 
 
-
 # 定义神经网络模型
 class NeuralNet(nn.Module):
-    def __init__(self, input_size, hidden_size1, num_classes):
+    def __init__(self, input_size, hidden_size1):
         super(NeuralNet, self).__init__()
         self.fc1 = nn.Linear(input_size, hidden_size1)
         self.relu = nn.ReLU()
-        # self.fc2 = nn.Linear(hidden_size1, hidden_size2)
-        # self.relu = nn.ReLU()
-        # self.fc3 = nn.Linear(hidden_size2, hidden_size3)
-        # self.relu = nn.ReLU()
-        self.fc4 = nn.Linear(hidden_size1, num_classes)
+        self.fc4 = nn.Linear(hidden_size1, 1)
 
     def forward(self, x):
         out = self.fc1(x)
         out = self.relu(out)
-        # out = self.fc2(out)
-        # out = self.relu(out)
-        # out = self.fc3(out)
-        # out = self.relu(out)
         out = self.fc4(out)
-        return out
+        return out.squeeze(1)
 
 
 
 # 初始化模型、损失函数和优化器
 input_size = X.shape[1]
-hidden_size1 = 2048
+hidden_size1 = 512
 # hidden_size2 = 512
 # hidden_size3 = 2048
-num_classes = len(original_labels)
-model = NeuralNet(input_size, hidden_size1,num_classes).to(device)
+model = NeuralNet(input_size, hidden_size1).to(device)
 
-criterion = nn.CrossEntropyLoss()
+criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, factor=0.5)
@@ -163,31 +146,28 @@ for epoch in range(num_epochs):
             break
 
 # 假设 model 是你的神经网络模型
-torch.save(model, 'dnn_pca_model.pth')
+torch.save(model, 'mlp_reg_model.pth')
 
 # 测试模型
 model.eval()
-all_preds = []
-all_targets = []
 with torch.no_grad():
-    for inputs, targets in test_loader:
-        inputs, targets = inputs.to(device), targets.to(device)
-        outputs = model(inputs)
-        _, preds = torch.max(outputs, 1)
-        all_preds.extend(preds.cpu().numpy())
-        all_targets.extend(targets.cpu().numpy())
+    all_predictions = []
+    all_targets = []
+    for X_batch, Y_batch in test_loader:
+        X_batch, Y_batch = X_batch.to(device), Y_batch.to(device)
 
-# 映射回原始标签
-all_preds_original = [index_to_label[pred] for pred in all_preds]
-all_targets_original = [index_to_label[target] for target in all_targets]
+        predictions = model(X_batch)
+        all_predictions.append(predictions.cpu())
+        all_targets.append(Y_batch.cpu())
+    all_predictions = torch.cat(all_predictions, dim=0)
+    all_targets = torch.cat(all_targets, dim=0)
+    mse = mean_squared_error(all_targets, all_predictions)
+    rmse = mse ** 0.5
 
-# 分类报告
-print("\n=== 分类报告 ===")
-print(classification_report(all_targets_original, all_preds_original))
-
-# # 测试模型
-# with torch.no_grad():
-#     outputs = model(X_test_tensor)
-#     _, predicted = torch.max(outputs, 1)
-#     accuracy = (predicted == y_test_tensor).sum().item() / y_test_tensor.size(0)
-#     print(f'测试集准确度: {accuracy:.2f}')
+    print(f'Mean Squared Error: {mse:.4f}')
+    print(f'Root Mean Squared Error: {rmse:.4f}')
+    # 对比具体的某些预测值
+    shape = (15, 1)
+    indices = np.random.randint(0, 30000,shape)
+    for index in indices:
+        print(f"样本 {index} - 真实值: {all_targets[index].item():.4f}, 预测值: {all_predictions[index].item():.4f}")

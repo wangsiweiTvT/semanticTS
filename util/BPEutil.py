@@ -67,7 +67,7 @@ def restore_tokens(tokens:list,bins,if_diff:bool,first_element=0):
 if __name__ == '__main__':
 
     # ETT
-    df = pd.read_csv('/Users/wangsiwei/Desktop/sematics4TS/ETT-small/ETTm1.csv')
+    df = pd.read_csv('E:/ideaproj/ETDataset/ETT-small/ETTm1.csv')
     time_series1 = df['HUFL']
     time_series2 = df['HULL']
     time_series3 = df['MUFL']

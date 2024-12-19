@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader, Dataset
 from tokenizers import Tokenizer, models, trainers, pre_tokenizers, decoders, processors
 import pandas as pd
 from util.BPEutil import discretize_series,create_value_to_unicode_map,convert_to_unicode
-
+import random
 
 # 检查是否有可用的 GPU
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -15,7 +15,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 texts = []
 
 # ETT
-df = pd.read_csv('/Users/wangsiwei/Desktop/sematics4TS/ETT-small/ETTm1.csv')
+df = pd.read_csv('E:/ideaproj/ETDataset/ETT-small/ETTm1.csv')
 time_series1 = df['HUFL']
 time_series2 = df['HULL']
 time_series3 = df['MUFL']
@@ -54,19 +54,36 @@ decoded = tokenizer.decode(encoded.ids, skip_special_tokens=False)
 print(decoded)
 tokens = decoded.split()
 print(len(tokens))
+# 2  0.0068
+# 3  0.5000
+# 10 0.8889
+# 20 0.9474
+# 50 0.9796
 
-for i in range(3,10):
+for i in range(10,11):
     for j in range(0,len(tokens)-i):
         texts.append(''.join(tokens[j:j+i]))
 
-print(len(texts))
+# for j in range(0,len(tokens)-10):
+#     texts.append(''.join(tokens[j:j+10]))
 
 
+def split_list(data, train_ratio=0.8):
+    random.shuffle(data)
+    train_size = int(train_ratio * len(data))
+    train_list = data[:train_size]
+    test_list = data[train_size:]
+    return train_list, test_list
+
+train_texts, test_texts = split_list(texts, train_ratio=0.5)
+print(len(train_texts))
 # 使用分词器对文本进行编码
 def encode_texts(texts, tokenizer):
     return [tokenizer.encode(text).ids for text in texts]
 
-encoded_texts = encode_texts(texts, tokenizer)
+encoded_texts = encode_texts(train_texts, tokenizer)
+
+encoded_texts_test = encode_texts(test_texts, tokenizer)
 
 
 
@@ -81,7 +98,7 @@ class TextDataset(Dataset):
     def __getitem__(self, idx):
         text = self.texts[idx]
         input_seq = torch.tensor(text[:-1])
-        target_seq = torch.tensor(text[1:])
+        target_seq = torch.tensor(text[-1:])
         return input_seq, target_seq
 
 
@@ -99,7 +116,10 @@ def collate_fn(batch):
 
 
 dataset = TextDataset(encoded_texts)
-data_loader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
+data_loader = DataLoader(dataset, batch_size=64, shuffle=True, collate_fn=collate_fn)
+
+dataset_test = TextDataset(encoded_texts_test)
+data_loader_test = DataLoader(dataset_test, batch_size=64, shuffle=True, collate_fn=collate_fn)
 
 
 # 模型定义
@@ -109,7 +129,7 @@ class TransformerModel(nn.Module):
         self.embed_size = embed_size
         self.embedding = nn.Embedding(vocab_size, embed_size)
         self.pos_encoder = PositionalEncoding(embed_size)
-        self.transformer = nn.Transformer(embed_size, num_heads, num_layers, num_layers, hidden_size)
+        self.transformer = nn.Transformer(embed_size, num_heads, num_layers, num_layers, hidden_size,batch_first=True)
         self.fc = nn.Linear(embed_size, vocab_size)
 
     def forward(self, src, tgt):
@@ -117,9 +137,9 @@ class TransformerModel(nn.Module):
         # src = self.pos_encoder(src)
 
         # 生成mask
-        tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt.size()[0])
-        src_key_padding_mask = TransformerModel.get_key_padding_mask(src)
-        tgt_key_padding_mask = TransformerModel.get_key_padding_mask(tgt)
+        tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt.size()[-1]).to(device)
+        src_key_padding_mask = TransformerModel.get_key_padding_mask(src).to(device)
+        tgt_key_padding_mask = TransformerModel.get_key_padding_mask(tgt).to(device)
 
         # 对src和tgt进行编码
         src = self.embedding(src)
@@ -143,7 +163,7 @@ class TransformerModel(nn.Module):
         """
         key_padding_mask = torch.zeros(tokens.size())
         key_padding_mask[tokens == 0] = -torch.inf
-        return torch.transpose(key_padding_mask,0,1)
+        return key_padding_mask
 
 class PositionalEncoding(nn.Module):
     def __init__(self, embed_size, max_len=5000):
@@ -203,7 +223,7 @@ def evaluate(model, data_loader, criterion, device):
 
 
 def main():
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     # 假设 vocab_size, embed_size, num_heads, hidden_size, num_layers 等参数已定义
     vocab_size = tokenizer.get_vocab_size()
@@ -214,11 +234,11 @@ def main():
 
     model = TransformerModel(vocab_size, embed_size, num_heads, hidden_size, num_layers).to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
-    num_epochs = 10
+    num_epochs = 100
     train(model, data_loader, criterion, optimizer, num_epochs, device)
-    evaluate(model, data_loader, criterion, device)
+    evaluate(model, data_loader_test, criterion, device)
 
 
 if __name__ == "__main__":

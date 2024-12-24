@@ -2,7 +2,8 @@ import numpy as np
 from tokenizers import Tokenizer, models, trainers
 import matplotlib.pyplot as plt
 import pandas as pd
-
+from collections import Counter
+from .synthesisTS import freq_filter,fft
 
 
 
@@ -67,7 +68,7 @@ def restore_tokens(tokens:list,bins,if_diff:bool,first_element=0):
 if __name__ == '__main__':
 
     # ETT
-    df = pd.read_csv('E:/ideaproj/ETDataset/ETT-small/ETTm1.csv')
+    df = pd.read_csv('/Users/wangsiwei/Desktop/sematics4TS/ETT-small/ETTm1.csv')
     time_series1 = df['HUFL']
     time_series2 = df['HULL']
     time_series3 = df['MUFL']
@@ -85,22 +86,31 @@ if __name__ == '__main__':
     # timestamp, time_series, s, t = synthesis(500000, 0.000, [25,30, 40, 125, 150,500], [1,1, 1, 1, 1,1],0.0)
 
     # 原序列
+
+
     plt.subplot(2, 2, 1)
-    plt.plot(range(0, len(time_series)), time_series1,color = 'red')
-    plt.plot(range(0, len(time_series)), time_series2,color = 'yellow')
-    plt.plot(range(0, len(time_series)), time_series3,color = 'blue')
-    plt.plot(range(0, len(time_series)), time_series4,color = 'green')
-    plt.plot(range(0, len(time_series)), time_series5,color = 'pink')
-    plt.plot(range(0, len(time_series)), time_series6,color = 'purple')
-    plt.plot(range(0, len(time_series)), time_series7,color = 'black')
+    plt.plot(range(0,len(time_series)), time_series)
+
+
+    # plt.plot(range(0, len(time_series)), time_series1,color = 'red')
+    # plt.plot(range(0, len(time_series)), time_series2,color = 'yellow')
+    # plt.plot(range(0, len(time_series)), time_series3,color = 'blue')
+    # plt.plot(range(0, len(time_series)), time_series4,color = 'green')
+    # plt.plot(range(0, len(time_series)), time_series5,color = 'pink')
+    # plt.plot(range(0, len(time_series)), time_series6,color = 'purple')
+    # plt.plot(range(0, len(time_series)), time_series7,color = 'black')
 
     # plt.plot(range(0,len(time_series)), time_series)
-
-    # plt.subplot(2, 2, 2)
-    # plt.plot(range(0,len(time_series)), time_series)
+    plt.subplot(2, 2, 2)
+    m,f,a = fft(time_series)
+    plt.plot(f[:len(f) // 2], a[:len(a) // 2])
+    plt.title("freq domain")
+    plt.xlabel("f(Hz)")
+    plt.ylabel("magnitude")
+    # plt.show()
 
     # 去高频
-    # time_series = freq_filter(time_series,50)
+    time_series = freq_filter(time_series,6000)
     # plt.subplot(2, 2, 2)
     # plt.plot(range(0,len(time_series)), time_series)
 
@@ -108,11 +118,13 @@ if __name__ == '__main__':
     #差分
     # df = pd.DataFrame(time_series, columns=['value'])
     # df['first_diff'] = df['value'].diff()
-    # time_series = df['first_diff'][1:]
+    # time_series = time_series.diff()
+
+    plt.subplot(2, 2, 3)
+    plt.plot(range(0,len(time_series)), time_series)
 
 
-
-    num_bins = 120
+    num_bins = 100
     # 将时间序列数据离散化为索引 [478 478 501 503 485 465 440 431 395 366 333 329 348 387 368 275 229 222]
     symbols = discretize_series(time_series, num_bins)
     # print(f"Discretized symbols: {symbols}")
@@ -128,7 +140,7 @@ if __name__ == '__main__':
     tokenizer = Tokenizer(BPE_model)
 
     # 定义预处理器和训练器
-    trainer = trainers.BpeTrainer( min_frequency=1,max_token_length=96,show_progress = True)
+    trainer = trainers.BpeTrainer( min_frequency=2,max_token_length=500)
 
     # 训练模型
     tokenizer.train_from_iterator([symbol_str], trainer)
@@ -139,6 +151,8 @@ if __name__ == '__main__':
     # 编码
     encoded = tokenizer.encode(symbol_str)
 
+    frequency = Counter(encoded.ids)
+    print(frequency)
     # vocab = tokenizer.get_vocab()
 
 
@@ -161,7 +175,7 @@ if __name__ == '__main__':
     colors = ['red','green','blue','yellow']
     timestamp_end = 0
 
-    plt.subplot(2, 2, 3)
+    plt.subplot(2, 2, 4)
     bins = np.linspace(min(time_series), max(time_series), num_bins + 1)
     # time_list,origin_value_list =restore_tokens(if_diff=True,tokens=tokens,bins=bins,first_element=first_element)
     time_list,origin_value_list =restore_tokens(if_diff=False,tokens=tokens,bins=bins)

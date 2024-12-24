@@ -5,8 +5,14 @@ import math
 from torch.utils.data import DataLoader, Dataset
 from tokenizers import Tokenizer, models, trainers, pre_tokenizers, decoders, processors
 import pandas as pd
-from util.BPEutil import discretize_series,create_value_to_unicode_map,convert_to_unicode
+from util.BPEutil import discretize_series,create_value_to_unicode_map,convert_to_unicode,restore_tokens,restore_series
 import random
+import numpy as np
+from util.synthesisTS import freq_filter
+import matplotlib.pyplot as plt
+import torch.nn.functional as F
+
+
 
 # 检查是否有可用的 GPU
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -15,7 +21,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 texts = []
 
 # ETT
-df = pd.read_csv('E:/ideaproj/ETDataset/ETT-small/ETTm1.csv')
+df = pd.read_csv('/Users/wangsiwei/Desktop/sematics4TS/ETT-small/ETTm1.csv')
 time_series1 = df['HUFL']
 time_series2 = df['HULL']
 time_series3 = df['MUFL']
@@ -25,14 +31,22 @@ time_series6 = df['LULL']
 time_series7 = df['OT']
 
 time_series = time_series5
+
+# 去高频
+time_series = freq_filter(time_series, 6000)
+
 print(time_series.size)
 timestamp = list(range(0, time_series.size, 1))
+
 
 
 #加载 BPE 分词器
 tokenizer = Tokenizer.from_file("../util/bpe-tokenizer.json")
 
 num_bins = 120
+
+bins = np.linspace(min(time_series), max(time_series), num_bins + 1)
+
 # 将时间序列数据离散化为索引 [478 478 501 503 485 465 440 431 395 366 333 329 348 387 368 275 229 222]
 symbols = discretize_series(time_series, num_bins)
 # print(f"Discretized symbols: {symbols}")
@@ -60,7 +74,7 @@ print(len(tokens))
 # 20 0.9474
 # 50 0.9796
 
-for i in range(10,11):
+for i in range(200,201):
     for j in range(0,len(tokens)-i):
         texts.append(''.join(tokens[j:j+i]))
 
@@ -97,8 +111,8 @@ class TextDataset(Dataset):
 
     def __getitem__(self, idx):
         text = self.texts[idx]
-        input_seq = torch.tensor(text[:-1])
-        target_seq = torch.tensor(text[-1:])
+        input_seq = torch.tensor(text[:-100])
+        target_seq = torch.tensor(text[-100:])
         return input_seq, target_seq
 
 
@@ -217,6 +231,26 @@ def evaluate(model, data_loader, criterion, device):
             predicted = outputs.argmax(dim=-1)
             correct += (predicted == targets).sum().item()
             total += targets.numel()
+
+            if(total%100==0):
+                decoded_in = tokenizer.decode(inputs[0], skip_special_tokens=False)
+                decoded_out = tokenizer.decode(predicted[0], skip_special_tokens=False)
+                decoded_truth = tokenizer.decode(targets[0], skip_special_tokens=False)
+                tokens_in = decoded_in.split()
+                tokens_out = decoded_out.split()
+                tokens_truth = decoded_truth.split()
+                symbol_in = ''.join(tokens_in)
+                symbol_out = ''.join(tokens_out)
+                symbol_truth = ''.join(tokens_truth)
+
+                series_in = restore_series(symbol_in, bins)
+                series_out = restore_series(symbol_out, bins)
+                series_truth = restore_series(symbol_truth, bins)
+                plt.plot(range(0,len(series_in)), series_in,color = 'blue')
+                plt.plot(range(len(series_in),len(series_in)+len(series_out)), series_out,color = 'red')
+                plt.plot(range(len(series_in),len(series_in)+len(series_truth)), series_truth,color = 'green')
+
+
 
     accuracy = correct / total
     print(f'Loss: {total_loss / len(data_loader):.4f}, Accuracy: {accuracy:.4f}')

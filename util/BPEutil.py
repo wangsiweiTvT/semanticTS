@@ -3,8 +3,9 @@ from tokenizers import Tokenizer, models, trainers
 import matplotlib.pyplot as plt
 import pandas as pd
 from collections import Counter
-from .synthesisTS import freq_filter,fft
-
+from util.synthesisTS import freq_filter,fft,synthesis
+import statsmodels.api as sm
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 
 
 # 添加高斯噪声
@@ -34,7 +35,7 @@ def convert_to_discretized(decoded, unicode2value):
     return idx
 # 离散化（将数值范围分成若干区间）
 def discretize_series(series, num_bins):
-    bins = np.linspace(min(series), max(series), num_bins + 1)
+    bins = np.linspace(min(series), max(series), num_bins )
     symbols = np.digitize(series, bins) - 1  # 转换为符号索引
     return symbols
 
@@ -68,7 +69,7 @@ def restore_tokens(tokens:list,bins,if_diff:bool,first_element=0):
 if __name__ == '__main__':
 
     # ETT
-    df = pd.read_csv('/Users/wangsiwei/Desktop/sematics4TS/ETT-small/ETTm1.csv')
+    df = pd.read_csv('E:/ideaproj/ETDataset/ETT-small/ETTm1.csv')
     time_series1 = df['HUFL']
     time_series2 = df['HULL']
     time_series3 = df['MUFL']
@@ -79,12 +80,13 @@ if __name__ == '__main__':
 
 
 
-    time_series = time_series5
+    time_series = time_series2
     print(time_series.size)
     timestamp = list(range(0, time_series.size, 1))
     # 合成
-    # timestamp, time_series, s, t = synthesis(500000, 0.000, [25,30, 40, 125, 150,500], [1,1, 1, 1, 1,1],0.0)
-
+    # x, ts, s, t = synthesis(100000, 0.000, [25,30, 40, 125, 150,500], [1,1, 1, 1, 1,1],0.0)
+    # time_series=ts
+    # timestamp=x
     # 原序列
 
 
@@ -101,33 +103,44 @@ if __name__ == '__main__':
     # plt.plot(range(0, len(time_series)), time_series7,color = 'black')
 
     # plt.plot(range(0,len(time_series)), time_series)
-    plt.subplot(2, 2, 2)
-    m,f,a = fft(time_series)
-    plt.plot(f[:len(f) // 2], a[:len(a) // 2])
-    plt.title("freq domain")
-    plt.xlabel("f(Hz)")
-    plt.ylabel("magnitude")
+    # plt.subplot(2, 2, 2)
+    # m,f,a = fft(time_series)
+    # plt.plot(f[:len(f) // 2], a[:len(a) // 2])
+    # plt.title("freq domain")
+    # plt.xlabel("f(Hz)")
+    # plt.ylabel("magnitude")
     # plt.show()
 
-    # 去高频
-    time_series = freq_filter(time_series,6000)
-    # plt.subplot(2, 2, 2)
+    # 绘制ACF和PACF图
+    # fig, axes = plt.subplots(1, 2, figsize=(16, 4))
+    # plot_acf(time_series_diff, lags=40, ax=axes[0])
+    # plot_pacf(time_series_diff, lags=40, ax=axes[1])
+    # plt.show()
+
+    #ARIMA 去噪
+    # arima_model = sm.tsa.ARIMA(time_series, order=(0, 1, 0)).fit()
+    # time_series = arima_model.fittedvalues
+    # plt.subplot(2, 2, 3)
     # plt.plot(range(0,len(time_series)), time_series)
+
+
+    # 去高频
+    # time_series = freq_filter(time_series,6000)
 
     first_element = time_series[0]
     #差分
     # df = pd.DataFrame(time_series, columns=['value'])
     # df['first_diff'] = df['value'].diff()
-    # time_series = time_series.diff()
+    time_series = time_series.diff()[1:]
 
-    plt.subplot(2, 2, 3)
+    plt.subplot(2, 2, 2)
     plt.plot(range(0,len(time_series)), time_series)
 
-
-    num_bins = 100
+    num_bins = 30000
     # 将时间序列数据离散化为索引 [478 478 501 503 485 465 440 431 395 366 333 329 348 387 368 275 229 222]
     symbols = discretize_series(time_series, num_bins)
-    # print(f"Discretized symbols: {symbols}")
+    print(f"Discretized symbols: {symbols}")
+
 
     value2unicode,unicode2value = create_value_to_unicode_map(symbols)
     # 将符号序列转换为字符串形式
@@ -140,7 +153,7 @@ if __name__ == '__main__':
     tokenizer = Tokenizer(BPE_model)
 
     # 定义预处理器和训练器
-    trainer = trainers.BpeTrainer( min_frequency=2,max_token_length=500)
+    trainer = trainers.BpeTrainer( min_frequency=2,max_token_length=1000)
 
     # 训练模型
     tokenizer.train_from_iterator([symbol_str], trainer)
@@ -151,34 +164,34 @@ if __name__ == '__main__':
     # 编码
     encoded = tokenizer.encode(symbol_str)
 
-    frequency = Counter(encoded.ids)
-    print(frequency)
+    # frequency = Counter(encoded.ids)
+    # print(frequency)
     # vocab = tokenizer.get_vocab()
 
 
     # 解码
     decoded = tokenizer.decode(encoded.ids,skip_special_tokens=False)
-    print(decoded)
+    # print(decoded)
     tokens = decoded.split()
     print(len(tokens))
     # tsBPE2vec_model = Word2Vec(sentences=[tokens], vector_size=100, window=10, min_count=0, workers=4)
     # vocab = tsBPE2vec_model.wv.key_to_index.keys()
     decoded_symbols = convert_to_discretized(decoded,unicode2value)
-
-    print(tokens[0:10])
-    symbol_sub_str = ''.join(tokens[0:10])
-    sub_encoded = tokenizer.encode(symbol_sub_str)
-    sub_decoded = tokenizer.decode(sub_encoded.ids,skip_special_tokens=False)
-    print(sub_decoded)
+    print(decoded_symbols)
+    # print(tokens[0:10])
+    # symbol_sub_str = ''.join(tokens[0:10])
+    # sub_encoded = tokenizer.encode(symbol_sub_str)
+    # sub_decoded = tokenizer.decode(sub_encoded.ids,skip_special_tokens=False)
+    # print(sub_decoded)
 
 
     colors = ['red','green','blue','yellow']
     timestamp_end = 0
 
-    plt.subplot(2, 2, 4)
-    bins = np.linspace(min(time_series), max(time_series), num_bins + 1)
-    # time_list,origin_value_list =restore_tokens(if_diff=True,tokens=tokens,bins=bins,first_element=first_element)
-    time_list,origin_value_list =restore_tokens(if_diff=False,tokens=tokens,bins=bins)
+    plt.subplot(2, 2, 3)
+    bins = np.linspace(min(time_series), max(time_series), num_bins+1 )
+    time_list,origin_value_list =restore_tokens(if_diff=True,tokens=tokens,bins=bins,first_element=first_element)
+    # time_list,origin_value_list =restore_tokens(if_diff=False,tokens=tokens,bins=bins)
     for index, time in enumerate(time_list):
         plt.plot(time, origin_value_list[index], color=colors[encoded.ids[index] % len(colors)])
     plt.show()

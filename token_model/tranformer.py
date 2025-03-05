@@ -5,12 +5,13 @@ import math
 from torch.utils.data import DataLoader, Dataset
 from tokenizers import Tokenizer, models, trainers, pre_tokenizers, decoders, processors
 import pandas as pd
-from util.BPEutil import discretize_series,create_value_to_unicode_map,convert_to_unicode,restore_tokens,restore_series
+from util.BPEutil import discretize_series,create_value_to_unicode_map,convert_to_unicode,restore_tokens,restore_series,convert_to_discretized
 import random
 import numpy as np
 from util.synthesisTS import freq_filter
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
+from collections import Counter
 
 
 
@@ -21,7 +22,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 texts = []
 
 # ETT
-df = pd.read_csv('/Users/wangsiwei/Desktop/sematics4TS/ETT-small/ETTm1.csv')
+df = pd.read_csv('E:/ideaproj/ETDataset/ETT-small/ETTm1.csv')
 time_series1 = df['HUFL']
 time_series2 = df['HULL']
 time_series3 = df['MUFL']
@@ -33,7 +34,7 @@ time_series7 = df['OT']
 time_series = time_series5
 
 # 去高频
-time_series = freq_filter(time_series, 6000)
+# time_series = freq_filter(time_series, 6000)
 
 print(time_series.size)
 timestamp = list(range(0, time_series.size, 1))
@@ -41,11 +42,15 @@ timestamp = list(range(0, time_series.size, 1))
 
 
 #加载 BPE 分词器
+#   num_bins = 100
 tokenizer = Tokenizer.from_file("../util/bpe-tokenizer.json")
+num_bins = 100
 
-num_bins = 120
+# tokenizer = Tokenizer.from_file("../util/filter-bpe-tokenizer.json")
+# num_bins = 100
 
-bins = np.linspace(min(time_series), max(time_series), num_bins + 1)
+
+bins = np.linspace(min(time_series), max(time_series), num_bins )
 
 # 将时间序列数据离散化为索引 [478 478 501 503 485 465 440 431 395 366 333 329 348 387 368 275 229 222]
 symbols = discretize_series(time_series, num_bins)
@@ -59,7 +64,8 @@ symbol_str = ''.join(unicode_series)
 
 # 编码
 encoded = tokenizer.encode(symbol_str)
-
+frequency = Counter(encoded.ids)
+print(frequency)
 # vocab = tokenizer.get_vocab()
 
 
@@ -74,14 +80,14 @@ print(len(tokens))
 # 20 0.9474
 # 50 0.9796
 
-for i in range(200,201):
-    for j in range(0,len(tokens)-i):
+for i in range(100,101):
+    for j in range(0,len(tokens)-i,50):
         texts.append(''.join(tokens[j:j+i]))
 
 # for j in range(0,len(tokens)-10):
 #     texts.append(''.join(tokens[j:j+10]))
 
-
+random.seed(42)
 def split_list(data, train_ratio=0.8):
     random.shuffle(data)
     train_size = int(train_ratio * len(data))
@@ -111,8 +117,8 @@ class TextDataset(Dataset):
 
     def __getitem__(self, idx):
         text = self.texts[idx]
-        input_seq = torch.tensor(text[:-100])
-        target_seq = torch.tensor(text[-100:])
+        input_seq = torch.tensor(text[:-50])
+        target_seq = torch.tensor(text[-50:])
         return input_seq, target_seq
 
 
@@ -209,6 +215,7 @@ def train(model, data_loader, criterion, optimizer, num_epochs, device):
 
         print(f'Epoch [{epoch + 1}/{num_epochs}], Loss: {total_loss / len(data_loader):.4f}')
 
+    torch.save(model, 'ts-bpe-transformer-stride50.pth')
 
 # def create_mask(src, pad_token=0):
 #     src_seq_len = src.shape[1]
@@ -232,10 +239,10 @@ def evaluate(model, data_loader, criterion, device):
             correct += (predicted == targets).sum().item()
             total += targets.numel()
 
-            if(total%100==0):
-                decoded_in = tokenizer.decode(inputs[0], skip_special_tokens=False)
-                decoded_out = tokenizer.decode(predicted[0], skip_special_tokens=False)
-                decoded_truth = tokenizer.decode(targets[0], skip_special_tokens=False)
+            if(total%50==0):
+                decoded_in = tokenizer.decode(inputs[0].tolist(), skip_special_tokens=False)
+                decoded_out = tokenizer.decode(predicted[0].tolist(), skip_special_tokens=False)
+                decoded_truth = tokenizer.decode(targets[0].tolist(), skip_special_tokens=False)
                 tokens_in = decoded_in.split()
                 tokens_out = decoded_out.split()
                 tokens_truth = decoded_truth.split()
@@ -243,12 +250,17 @@ def evaluate(model, data_loader, criterion, device):
                 symbol_out = ''.join(tokens_out)
                 symbol_truth = ''.join(tokens_truth)
 
+                symbol_in = convert_to_discretized(symbol_in, unicode2value)
+                symbol_out = convert_to_discretized(symbol_out, unicode2value)
+                symbol_truth = convert_to_discretized(symbol_truth, unicode2value)
+
                 series_in = restore_series(symbol_in, bins)
                 series_out = restore_series(symbol_out, bins)
                 series_truth = restore_series(symbol_truth, bins)
                 plt.plot(range(0,len(series_in)), series_in,color = 'blue')
                 plt.plot(range(len(series_in),len(series_in)+len(series_out)), series_out,color = 'red')
                 plt.plot(range(len(series_in),len(series_in)+len(series_truth)), series_truth,color = 'green')
+                plt.show()
 
 
 
@@ -267,11 +279,14 @@ def main():
     num_layers = 4
 
     model = TransformerModel(vocab_size, embed_size, num_heads, hidden_size, num_layers).to(device)
+    model = torch.load('ts-bpe-transformer-stride100.pth', map_location=torch.device(device))
+
+
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
     num_epochs = 100
-    train(model, data_loader, criterion, optimizer, num_epochs, device)
+    # train(model, data_loader, criterion, optimizer, num_epochs, device)
     evaluate(model, data_loader_test, criterion, device)
 
 

@@ -7,7 +7,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 
 
-# 假设每个文件夹下的文件是时间序列数据（.csv 或 .npy 格式），
+# 假设每个文件夹下的文件是时间序列数据（.csv  格式），
 # 每个文件夹代表一个类别
 class TimeSeriesDataset(Dataset):
     def __init__(self, data_dir, transform=None):
@@ -34,13 +34,15 @@ class TimeSeriesDataset(Dataset):
                 # 读取文件内容，假设为 .csv 文件
                 # 你可以根据数据格式调整读取方式（如 .npy, .csv 等）
                 if file_path.endswith(".csv"):
-                    data =[[i] for i in (pd.read_csv(file_path)['CH17'].values)]
+                    data =pd.read_csv(file_path)['CH17'].values
 
                 # 将数据添加到列表
+
                 self.data.append(data)
                 self.labels.append(label)  # 标签是该类文件夹的索引
 
         # 转换为 NumPy 数组并归一化或标准化（可选）
+        self.data = np.expand_dims(self.data,-1)
         self.data = np.array(self.data)
         self.labels = np.array(self.labels)
 
@@ -63,9 +65,9 @@ class TimeSeriesDataset(Dataset):
 
 
 # 示例：读取训练数据
-data_dir = "/Users/wangsiwei/dataset/BJTU_RAO_Bogie_Datasets/"  # 你的数据路径
+data_dir = "E:/dataset/BJTU_RAO_Bogie_Datasets"  # 你的数据路径
 dataset = TimeSeriesDataset(data_dir)
-train_loader = DataLoader(dataset, batch_size=32, shuffle=True)
+train_loader = DataLoader(dataset, batch_size=4, shuffle=True)
 
 import torch
 import torch.nn as nn
@@ -96,7 +98,7 @@ class TCN(nn.Module):
         self.fc = nn.Linear(num_channels[-1], num_classes)
 
     def forward(self, x):
-        # 输入的 x 是 (batch_size, seq_len, input_size)，我们需要调整为 (batch_size, input_size, seq_len)
+        # 输入的 x 是 (batch_size, seq_len, input_size)，需要调整为 (batch_size, input_size, seq_len)
         x = x.permute(0, 2, 1)  # 改变为 (batch_size, input_size, seq_len)
 
         x = self.tcn_layers(x)
@@ -114,7 +116,7 @@ import torch.optim as optim
 from sklearn.metrics import accuracy_score
 
 # 检查是否有 GPU
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # 初始化模型
 input_size = dataset.X_train.shape[2]  # 每个时间序列的特征数
@@ -167,9 +169,10 @@ for epoch in range(num_epochs):
 
     print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {epoch_acc:.2f}%")
 
+torch.save(model, 'tcn_single_class.pth')
 # 测试代码
 model.eval()
-test_loader = DataLoader(dataset, batch_size=32, shuffle=False)
+test_loader = DataLoader(dataset, batch_size=4, shuffle=False)
 
 y_true = []
 y_pred = []

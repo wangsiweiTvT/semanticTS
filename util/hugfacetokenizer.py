@@ -12,10 +12,10 @@ files = ["corpus.txt"]
 tokenizer.train(files, trainer)
 
 # 保存模型
-tokenizer.save("bpe-tokenizer.json")
+tokenizer.save("filter-bpe-tokenizer.json")
 
 # 加载模型
-tokenizer = Tokenizer.from_file("bpe-tokenizer.json")
+tokenizer = Tokenizer.from_file("filter-bpe-tokenizer.json")
 
 # 编码
 encoded = tokenizer.encode("lower")

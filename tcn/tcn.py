@@ -69,48 +69,132 @@ data_dir = "E:/dataset/BJTU_RAO_Bogie_Datasets"  # 你的数据路径
 dataset = TimeSeriesDataset(data_dir)
 train_loader = DataLoader(dataset, batch_size=4, shuffle=True)
 
+#
+# class TCN(nn.Module):
+#     def __init__(self, input_size, num_classes, num_channels=[64, 128, 256], kernel_size=2, dilation_rates=[1, 2, 4]):
+#         super(TCN, self).__init__()
+#
+#         # 定义 TCN 的层（1D 卷积层）
+#         layers = []
+#         in_channels = input_size
+#         for i, out_channels in enumerate(num_channels):
+#             dilation = dilation_rates[i]  # 获取当前层的膨胀因子
+#
+#             # 因果卷积：在每一层的卷积中应用膨胀卷积，并设置padding为dilation的大小
+#             layers.append(
+#                 nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, stride=1, padding=dilation,
+#                           dilation=dilation)
+#             )
+#             layers.append(nn.ReLU())
+#             layers.append(nn.MaxPool1d(kernel_size=2, stride=2))  # 可选：池化层
+#             in_channels = out_channels
+#
+#         self.tcn_layers = nn.Sequential(*layers)
+#
+#         # 分类头部
+#         self.fc = nn.Linear(num_channels[-1], num_classes)
+#
+#     def forward(self, x):
+#         # 输入的 x 是 (batch_size, seq_len, input_size)，需要调整为 (batch_size, input_size, seq_len)
+#         x = x.permute(0, 2, 1)  # 改变为 (batch_size, input_size, seq_len)
+#
+#         x = self.tcn_layers(x)
+#
+#         # 全局池化
+#         x = x.mean(dim=2)  # (batch_size, num_channels[-1])
+#
+#         # 分类
+#         x = self.fc(x)
+#
+#         return x
+
+
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
-class TCN(nn.Module):
-    def __init__(self, input_size, num_classes, num_channels=[64, 128, 256], kernel_size=2, dilation_rates=[1, 2, 4]):
-        super(TCN, self).__init__()
+class TemporalBlock(nn.Module):
+    """TCN 残差块（膨胀因果卷积 + 归一化 + 激活 + Dropout）"""
 
-        # 定义 TCN 的层（1D 卷积层）
+    def __init__(self, in_channels, out_channels, kernel_size, dilation, dropout=0.2):
+        super().__init__()
+        padding = (kernel_size - 1) * dilation  # 因果卷积所需的左侧填充
+
+        # 主要卷积路径
+        self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size,
+                               padding=padding, dilation=dilation)
+        self.norm1 = nn.BatchNorm1d(out_channels)
+        self.dropout1 = nn.Dropout(dropout)
+
+        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size,
+                               padding=padding, dilation=dilation)
+        self.norm2 = nn.BatchNorm1d(out_channels)
+        self.dropout2 = nn.Dropout(dropout)
+
+        # 下采样连接（当输入输出通道数不一致时）
+        self.downsample = nn.Conv1d(in_channels, out_channels, 1) if in_channels != out_channels else None
+
+        self.relu = nn.ReLU()
+        self.init_weights()
+
+    def init_weights(self):
+        """权重初始化"""
+        self.conv1.weight.data.normal_(0, 0.01)
+        self.conv2.weight.data.normal_(0, 0.01)
+        if self.downsample is not None:
+            self.downsample.weight.data.normal_(0, 0.01)
+
+    def forward(self, x):
+        residual = x
+        # 第一个卷积层
+        out = self.conv1(x)
+        out = out[:, :, :-self.conv1.padding[0]]  # 裁剪右侧多余的填充
+        out = self.norm1(out)
+        out = self.relu(out)
+        out = self.dropout1(out)
+
+        # 第二个卷积层
+        out = self.conv2(out)
+        out = out[:, :, :-self.conv2.padding[0]]
+        out = self.norm2(out)
+        out = self.relu(out)
+        out = self.dropout2(out)
+
+        # 残差连接
+        if self.downsample is not None:
+            residual = self.downsample(residual)
+        return self.relu(out + residual)
+
+
+class TCNClassifier(nn.Module):
+    """TCN 分类网络"""
+
+    def __init__(self, input_size, num_classes, num_channels = [64,64,64], kernel_size=3, dropout=0.2):
+        super().__init__()
         layers = []
-        in_channels = input_size
-        for i, out_channels in enumerate(num_channels):
-            dilation = dilation_rates[i]  # 获取当前层的膨胀因子
+        num_levels = len(num_channels)
 
-            # 因果卷积：在每一层的卷积中应用膨胀卷积，并设置padding为dilation的大小
-            layers.append(
-                nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, stride=1, padding=dilation,
-                          dilation=dilation)
-            )
-            layers.append(nn.ReLU())
-            layers.append(nn.MaxPool1d(kernel_size=2, stride=2))  # 可选：池化层
-            in_channels = out_channels
+        # 堆叠多个 TemporalBlock
+        for i in range(num_levels):
+            dilation_size = 2 ** i  # 指数增长的膨胀系数
+            in_channels = input_size if i == 0 else num_channels[i - 1]
+            out_channels = num_channels[i]
+            layers += [TemporalBlock(in_channels, out_channels, kernel_size,
+                                     dilation=dilation_size, dropout=dropout)]
 
-        self.tcn_layers = nn.Sequential(*layers)
-
-        # 分类头部
+        self.tcn = nn.Sequential(*layers)
+        # 全局平均池化 + 全连接层
+        self.gap = nn.AdaptiveAvgPool1d(1)
         self.fc = nn.Linear(num_channels[-1], num_classes)
 
     def forward(self, x):
         # 输入的 x 是 (batch_size, seq_len, input_size)，需要调整为 (batch_size, input_size, seq_len)
         x = x.permute(0, 2, 1)  # 改变为 (batch_size, input_size, seq_len)
-
-        x = self.tcn_layers(x)
-
-        # 全局池化
-        x = x.mean(dim=2)  # (batch_size, num_channels[-1])
-
-        # 分类
-        x = self.fc(x)
-
-        return x
-
+        # 输入形状: (batch_size, input_size, seq_len)
+        x = self.tcn(x)  # 输出形状: (batch_size, num_channels[-1], seq_len)
+        x = self.gap(x).squeeze()  # 全局平均池化: (batch_size, num_channels[-1])
+        return self.fc(x)  # 分类输出: (batch_size, num_classes)
 
 import torch.optim as optim
 from sklearn.metrics import accuracy_score
@@ -122,7 +206,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 input_size = dataset.X_train.shape[2]  # 每个时间序列的特征数
 # input_size = 1  # 每个时间序列的特征数
 num_classes = len(dataset.class_names)
-model = TCN(input_size=input_size, num_classes=num_classes)
+model = TCNClassifier(input_size=input_size, num_classes=num_classes)
 
 # 将模型移到 GPU（如果有的话）
 model.to(device)
